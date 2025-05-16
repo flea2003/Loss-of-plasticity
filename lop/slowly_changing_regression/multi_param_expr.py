@@ -77,7 +77,7 @@ def main(arguments):
             """
                 write data in config files
             """
-            new_cfg_file = 'temp_cfg/'+str(setting_index*params['num_runs']+idx)+'.json'
+            new_cfg_file = 'temp_cfg/'+str(200 + setting_index*params['num_runs']+idx)+'.json'
             try:    f = open(new_cfg_file, 'w+')
             except: f = open(new_cfg_file, 'w+')
             with open(new_cfg_file, 'w+') as f:

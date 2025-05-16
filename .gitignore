@@ -12,3 +12,5 @@ share/
 *.pyc
 data/
 .DS_Store
+wandb/
+logs/

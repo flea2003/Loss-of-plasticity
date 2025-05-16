@@ -1,5 +1,6 @@
 import sys
 import torch
+import wandb
 from math import sqrt
 import torch.nn.functional as F
 from lop.utils.AdamGnT import AdamGnT
@@ -15,7 +16,10 @@ class GnT(object):
             hidden_activation,
             opt,
             decay_rate=0.99,
+            replacement_strategy='layerwise',
+            high_replacement_rate=0,
             replacement_rate=1e-4,
+            layer_replace=-1,
             init='kaiming',
             device="cpu",
             maturity_threshold=20,
@@ -29,6 +33,8 @@ class GnT(object):
         self.num_hidden_layers = int(len(self.net)/2)
         self.loss_func = loss_func
         self.accumulate = accumulate
+        self.layer_replace = layer_replace
+        self.replacement_strategy = replacement_strategy
 
         self.opt = opt
         self.opt_type = 'sgd'
@@ -38,6 +44,7 @@ class GnT(object):
         """
         Define the hyper-parameters of the algorithm
         """
+        self.high_replacement_rate = high_replacement_rate
         self.replacement_rate = replacement_rate
         self.decay_rate = decay_rate
         self.maturity_threshold = maturity_threshold
@@ -52,8 +59,10 @@ class GnT(object):
         self.ages = [torch.zeros(self.net[i * 2].out_features).to(self.device) for i in range(self.num_hidden_layers)]
         self.m = torch.nn.Softmax(dim=1)
         self.mean_feature_act = [torch.zeros(self.net[i * 2].out_features).to(self.device) for i in range(self.num_hidden_layers)]
-        self.accumulated_num_features_to_replace = [0 for i in range(self.num_hidden_layers)]
-
+        self.accumulated_num_features_to_replace = [[0 for j in range(2)] for i in range(self.num_hidden_layers)]
+        self.iter_count = [0 for i in range(2)]
+        self.accumulate_total = [0 for i in range(2)]
+        self.wandb_count = [0 for i in range(2)]
         """
         Calculate uniform distribution's bound for random feature initialization
         """
@@ -119,7 +128,7 @@ class GnT(object):
             if self.util_type == 'random':
                 self.bias_corrected_util[layer_idx] = torch.rand(self.util[layer_idx].shape)
 
-    def test_features(self, features):
+    def test_features(self, features, criterion):
         """
         Args:
             features: Activation values in the neural network
@@ -128,55 +137,161 @@ class GnT(object):
         """
         features_to_replace = [torch.empty(0, dtype=torch.long).to(self.device) for _ in range(self.num_hidden_layers)]
         num_features_to_replace = [0 for _ in range(self.num_hidden_layers)]
-        if self.replacement_rate == 0:
+        repl_rate = self.replacement_rate if criterion == 'low' else self.high_replacement_rate
+        index = 0 if criterion == 'low' else 1
+        coef = -1 if criterion == 'low' else 1
+
+        if criterion == 'low' and self.replacement_rate == 0:
             return features_to_replace, num_features_to_replace
-        for i in range(self.num_hidden_layers):
-            self.ages[i] += 1
-            """
-            Update feature utility
-            """
-            self.update_utility(layer_idx=i, features=features[i])
-            """
-            Find the no. of features to replace
-            """
-            eligible_feature_indices = torch.where(self.ages[i] > self.maturity_threshold)[0]
-            if eligible_feature_indices.shape[0] == 0:
-                continue
-            num_new_features_to_replace = self.replacement_rate*eligible_feature_indices.shape[0]
-            self.accumulated_num_features_to_replace[i] += num_new_features_to_replace
+        elif criterion == 'high' and self.high_replacement_rate == 0:
+            return features_to_replace, num_features_to_replace
+        
+        if self.replacement_strategy == 'layerwise':
+            for i in range(self.num_hidden_layers):
+                if i != self.layer_replace and self.layer_replace != -1:
+                    continue
 
-            """
-            Case when the number of features to be replaced is between 0 and 1.
-            """
-            if self.accumulate:
-                num_new_features_to_replace = int(self.accumulated_num_features_to_replace[i])
-                self.accumulated_num_features_to_replace[i] -= num_new_features_to_replace
-            else:
-                if num_new_features_to_replace < 1:
-                    if torch.rand(1) <= num_new_features_to_replace:
-                        num_new_features_to_replace = 1
-                num_new_features_to_replace = int(num_new_features_to_replace)
-    
-            if num_new_features_to_replace == 0:
-                continue
+                self.ages[i] += 1
+                """
+                Update feature utility
+                """
+                self.update_utility(layer_idx=i, features=features[i])
+                """
+                Find the no. of features to replace
+                """
+                eligible_feature_indices = torch.where(self.ages[i] > self.maturity_threshold)[0]
+                if eligible_feature_indices.shape[0] == 0:
+                    continue
 
-            """
-            Find features to replace in the current layer
-            """
-            new_features_to_replace = torch.topk(-self.bias_corrected_util[i][eligible_feature_indices],
-                                                 num_new_features_to_replace)[1]
-            new_features_to_replace = eligible_feature_indices[new_features_to_replace]
+                num_new_features_to_replace = repl_rate*eligible_feature_indices.shape[0]
+                self.accumulated_num_features_to_replace[i][index] += num_new_features_to_replace
 
-            """
-            Initialize utility for new features
-            """
-            self.util[i][new_features_to_replace] = 0
-            self.mean_feature_act[i][new_features_to_replace] = 0.
+                # if criterion == 'low':
+                #     self.iter_count[0] += 1
+                #     if self.iter_count[0] % 500 == 0:
+                #         wandb.log({f"low acc feature to replace for layer{i}": self.accumulated_num_features_to_replace[i][index]}, step = int(self.iter_count[0] / 500))
+                # else: 
+                #     self.iter_count[1] += 1
+                #     if self.iter_count[1] % 500 == 0:
+                #         wandb.log({f"high acc feature to replace for layer{i}": self.accumulated_num_features_to_replace[i][index]}, step = int(self.iter_count[1] / 500))
 
-            features_to_replace[i] = new_features_to_replace
-            num_features_to_replace[i] = num_new_features_to_replace
+                """
+                Case when the number of features to be replaced is between 0 and 1.
+                """
+                if self.accumulate:
+                    num_new_features_to_replace = int(self.accumulated_num_features_to_replace[i][index])
+                    self.accumulated_num_features_to_replace[i][index] -= num_new_features_to_replace
+                else:
+                    if num_new_features_to_replace < 1:
+                        if torch.rand(1) <= num_new_features_to_replace:
+                            num_new_features_to_replace = 1
+                    num_new_features_to_replace = int(num_new_features_to_replace)
+        
+                if num_new_features_to_replace == 0:
+                    continue
 
-        return features_to_replace, num_features_to_replace
+                """
+                Find features to replace in the current layer
+                """
+                new_features_to_replace = torch.topk((coef) * self.bias_corrected_util[i][eligible_feature_indices],
+                                                    num_new_features_to_replace)[1]
+                new_features_to_replace = eligible_feature_indices[new_features_to_replace]
+                
+                """
+                Initialize utility for new features
+                """
+                self.util[i][new_features_to_replace] = 0
+                self.mean_feature_act[i][new_features_to_replace] = 0.
+
+                features_to_replace[i] = new_features_to_replace
+                num_features_to_replace[i] = num_new_features_to_replace
+
+            return features_to_replace, num_features_to_replace
+        
+        elif self.replacement_strategy == 'networkwise':
+            if self.layer_replace != -1:
+                return features_to_replace, num_features_to_replace
+            
+            eligible_feature_indices = []
+            for i in range(self.num_hidden_layers):
+                self.ages[i] += 1
+                """
+                Update feature utility
+                """
+                self.update_utility(layer_idx=i, features=features[i])
+                """
+                Find the no. of features to replace
+                """
+                replace_options = torch.where(self.ages[i] > self.maturity_threshold)[0]
+                replace_options = [(int(indx), i) for indx in replace_options]
+                
+                eligible_feature_indices.extend(replace_options)
+            
+            eligible_feature_indices = torch.Tensor(eligible_feature_indices)
+            if eligible_feature_indices.shape[0] > 0:
+                num_new_features_to_replace = repl_rate*eligible_feature_indices.shape[0]
+
+                self.accumulate_total[index] += num_new_features_to_replace
+
+                # if criterion == 'low':
+                #     self.iter_count[0] += 1
+                #     if self.iter_count[0] % 500 == 0:
+                #         wandb.log({f"low acc feature to replace": self.accumulate_total[index]}, step = int(self.iter_count[0] / 500))
+                # else: 
+                #     self.iter_count[1] += 1
+                #     if self.iter_count[1] % 500 == 0:
+                #         wandb.log({f"high acc feature to replace": self.accumulate_total[index]}, step = int(self.iter_count[1] / 500))
+
+                """
+                Case when the number of features to be replaced is between 0 and 1.
+                """
+                if self.accumulate:
+                    num_new_features_to_replace = int(self.accumulate_total[index])
+                    self.accumulate_total[index] -= num_new_features_to_replace
+                else:
+                    if num_new_features_to_replace < 1:
+                        if torch.rand(1) <= num_new_features_to_replace:
+                            num_new_features_to_replace = 1
+                    num_new_features_to_replace = int(num_new_features_to_replace)
+
+
+                if num_new_features_to_replace == 0:
+                    return features_to_replace, num_features_to_replace
+
+                """
+                Find features to replace in the current layer
+                """                
+                eligible_utils = []
+                for unit_idx, layer_idx in eligible_feature_indices:
+                    val = self.bias_corrected_util[int(layer_idx.item())][int(unit_idx.item())]
+                    eligible_utils.append(coef * val)
+
+                new_features_to_replace = torch.topk(torch.tensor(eligible_utils),
+                                                    num_new_features_to_replace)[1]
+                new_features_to_replace = eligible_feature_indices[new_features_to_replace]
+
+                # for feature in new_features_to_replace: 
+                #     if criterion == 'low':
+                #         wandb.log({"layer replace low": feature[1]}, step = self.wandb_count[0])
+                #         self.wandb_count[0] += 1
+                #     elif criterion == 'high':
+                #         wandb.log({"layer replace high": feature[1]}, step = self.wandb_count[1])
+                #         self.wandb_count[1] += 1
+
+                """
+                Initialize utility for new features
+                """
+                for feature in new_features_to_replace:
+                    self.util[int(feature[1].item())][int(feature[0].item())] = 0
+                    self.mean_feature_act[int(feature[1].item())][int(feature[0].item())] = 0.
+            
+                for i in range(self.num_hidden_layers):
+                    mask = new_features_to_replace[:, 1] == i
+                    features_to_replace[i] = new_features_to_replace[mask][:, 0].long()
+                    num_features_to_replace[i] = features_to_replace[i].shape[0]
+
+            return features_to_replace, num_features_to_replace
+
 
     def gen_new_features(self, features_to_replace, num_features_to_replace):
         """
@@ -232,6 +347,11 @@ class GnT(object):
         if not isinstance(features, list):
             print('features passed to generate-and-test should be a list')
             sys.exit()
-        features_to_replace, num_features_to_replace = self.test_features(features=features)
+        
+        features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'low')
+        self.gen_new_features(features_to_replace, num_features_to_replace)
+        self.update_optim_params(features_to_replace, num_features_to_replace)
+
+        features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'high')
         self.gen_new_features(features_to_replace, num_features_to_replace)
         self.update_optim_params(features_to_replace, num_features_to_replace)

@@ -1,3 +1,5 @@
+import os
+import wandb
 import sys
 import json
 import pickle
@@ -73,6 +75,7 @@ def expr(params: {}):
             opt=opt,
             beta_1=beta_1,
             beta_2=beta_2,
+            device="cuda:0",
             weight_decay=weight_decay,
             to_perturb=(perturb_scale > 0),
             perturb_scale=perturb_scale,
@@ -98,6 +101,8 @@ def expr(params: {}):
     if to_log: weight_mag = torch.zeros((num_data_points, 2), dtype=torch.float)
     if to_log_grad: grad_mag = torch.zeros((num_data_points, 2), dtype=torch.float)
     if to_log_activation: activation = torch.zeros((num_data_points, ), dtype=torch.float)
+    
+    iter = 0
     for i in tqdm(range(num_data_points)):
         x, y = inputs[i: i+1], outputs[i: i+1]
         err = learner.learn(x=x, target=y)
@@ -113,6 +118,10 @@ def expr(params: {}):
             if hidden_activation == 'tanh':
                 activation[i] = (learner.previous_features[0].abs() > 0.9).float().mean()
         errs[i] = err
+
+        iter += 1 
+        if iter % 100 == 0: 
+            wandb.log({"error": err})
 
     data_to_save = {
         'errs': errs.numpy()
@@ -138,10 +147,20 @@ def main(arguments):
     with open(cfg_file, 'r') as f:
         params = json.load(f)
 
+    wandb.init(
+        project=params["project"],
+        name=params["agent"] + params["hidden_activation"],
+        group=params["group"],
+        mode="disabled",
+        config=params,
+    )
     data = expr(params)
 
+    os.makedirs(os.path.dirname(params['data_file']), exist_ok = True)
     with open(params['data_file'], 'wb+') as f:
         pickle.dump(data, f)
+
+    wandb.finish()
 
 
 if __name__ == '__main__':

@@ -3,7 +3,9 @@ import json
 import torch
 import pickle
 import argparse
+import wandb
 import numpy as np
+import time, random
 from tqdm import tqdm
 from lop.algos.bp import Backprop
 from lop.algos.cbp import ContinualBackprop
@@ -28,15 +30,18 @@ def online_expr(params: {}):
     dev = 'cpu'
     to_log = False
     num_features = 2000
-    change_after = 10 * 6000
+    change_after = 10 * 1000
     to_perturb = False
     perturb_scale = 0.1
     num_hidden_layers = 1
     mini_batch_size = 1
+    high_replacement_rate = 0
     replacement_rate = 0.0001
     decay_rate = 0.99
     maturity_threshold = 100
     util_type = 'adaptable_contribution'
+    replacement_strategy = 'layerwise'
+    layer_replace = -1
 
     if 'to_log' in params.keys():
         to_log = params['to_log']
@@ -67,6 +72,12 @@ def online_expr(params: {}):
         maturity_threshold = params['mt']
     if 'util_type' in params.keys():
         util_type = params['util_type']
+    if 'high_replacement_rate' in params.keys():
+        high_replacement_rate = params['high_replacement_rate']
+    if 'replacement_strategy' in params.keys():
+        replacement_strategy = params['replacement_strategy']
+    if 'layer_replace' in params.keys():
+        layer_replace = params['layer_replace']
 
     classes_per_task = 10
     images_per_class = 6000
@@ -98,12 +109,15 @@ def online_expr(params: {}):
             step_size=step_size,
             opt=opt,
             loss='nll',
+            high_replacement_rate=high_replacement_rate,
             replacement_rate=replacement_rate,
             maturity_threshold=maturity_threshold,
             decay_rate=decay_rate,
             util_type=util_type,
             accumulate=True,
             device=dev,
+            layer_replace=layer_replace,
+            replacement_strategy=replacement_strategy,
         )
 
     accuracy = nll_accuracy
@@ -117,7 +131,7 @@ def online_expr(params: {}):
     accuracies = torch.zeros(total_iters, dtype=torch.float)
     weight_mag_sum = torch.zeros((total_iters, num_hidden_layers+1), dtype=torch.float)
 
-    rank_measure_period = 60000
+    rank_measure_period = 10000
     effective_ranks = torch.zeros((int(total_examples/rank_measure_period), num_hidden_layers), dtype=torch.float)
     approximate_ranks = torch.zeros((int(total_examples/rank_measure_period), num_hidden_layers), dtype=torch.float)
     approximate_ranks_abs = torch.zeros((int(total_examples/rank_measure_period), num_hidden_layers), dtype=torch.float)
@@ -148,6 +162,13 @@ def online_expr(params: {}):
                         compute_matrix_rank_summaries(m=m[rep_layer_idx], use_scipy=True)
                     dead_neurons[new_idx][rep_layer_idx] = (m[rep_layer_idx].abs().sum(dim=0) == 0).sum()
                 print('approximate rank: ', approximate_ranks[new_idx], ', dead neurons: ', dead_neurons[new_idx])
+                
+                wandb.log({
+                    "dead neurons": dead_neurons[new_idx].sum(dim=0)/(3*100)*100
+                }, commit = False)
+                wandb.log({
+                    "effective rank": effective_ranks[new_idx].sum(dim=0)/(3*100/100)
+                }, commit = False)
 
         for start_idx in tqdm(range(0, change_after, mini_batch_size)):
             start_idx = start_idx % examples_per_task
@@ -162,10 +183,18 @@ def online_expr(params: {}):
                     weight_mag_sum[iter][idx] = learner.net.layers[layer_idx].weight.data.abs().sum()
             # log accuracy
             with torch.no_grad():
-                accuracies[iter] = accuracy(softmax(network_output, dim=1), batch_y).cpu()
-            iter += 1
+                acc = accuracy(softmax(network_output, dim=1), batch_y).cpu()
+                accuracies[iter] = acc
 
+                # if iter % 100 == 0:
+                #     wandb.log({"accuracy": acc, "loss" : loss})
+            iter += 1
+        
         print('recent accuracy', accuracies[new_iter_start:iter - 1].mean())
+        wandb.log({
+            "accuracy": accuracies[new_iter_start:iter - 1].mean()
+        })
+        
         if task_idx % save_after_every_n_tasks == 0:
             data = {
                 'accuracies': accuracies.cpu(),
@@ -207,7 +236,34 @@ def main(arguments):
     with open(cfg_file, 'r') as f:
         params = json.load(f)
 
+    time.sleep(random.uniform(1, 10))
+
+    name_parts = [params.get("agent", "unknown")]
+
+    # if "num_features" in params:
+    #     name_parts.append(f'features:{params["num_features"]}')
+    # if "num_hidden_layers" in params:
+    #     name_parts.append(f'layers:{params["num_hidden_layers"]}')
+    if "replacement_strategy" in params:
+        name_parts.append(params["replacement_strategy"])
+    if "high_replacement_rate" in params:
+        name_parts.append(f'high_rate:{params["high_replacement_rate"]}')
+    if "replacement_rate" in params:
+        name_parts.append(f'low_rate:{params["replacement_rate"]}')
+    if "layer_replace" in params:
+        name_parts.append(f'layer_replace:{params["layer_replace"]}')
+    run_name = ",".join(name_parts)
+
+    wandb.init(
+        project=params["project"],
+        name=run_name,
+        group=params["group"],
+        config=params,
+    )
+
     online_expr(params)
+
+    wandb.finish()
 
 
 if __name__ == '__main__':

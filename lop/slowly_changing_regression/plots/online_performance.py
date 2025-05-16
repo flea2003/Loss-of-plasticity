@@ -56,7 +56,7 @@ def main(arguments):
         performances=performances,
         colors=['C3', 'C4', 'C5', 'C8'],
         yticks=yticks,
-        xticks=[0, 500000, 1000000],
+        xticks=[0, 50000, 100000],
         xticks_labels=['0', '0.5M', '1M'],
         m=m,
         labels=labels
