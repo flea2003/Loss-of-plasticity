@@ -261,6 +261,9 @@ def main(arguments):
         config=params,
     )
 
+    bash_command = "mkdir -p " + params['data_dir']
+    subprocess.Popen(bash_command.split(), stdout=subprocess.PIPE)
+    
     online_expr(params)
 
     wandb.finish()

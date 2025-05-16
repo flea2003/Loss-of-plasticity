@@ -2,10 +2,10 @@
 "model_version": "BP on net with 3 hidden layer and 100 hidden-units",
 
   "_comment_1_": "List of problem/experiment parameters",
-  "num_runs":  5,
+  "num_runs":  1,
   "num_tasks": 800,
   "use_gpu": 1,
-  "data_dir": "data/networkwise/bp/small_net/",
+  "data_dir": "data/high_repl_rate/bp/small_net/",
   "to_log": true,
   "project": "loss-of-plasticity",
   "group": "networkwise",
