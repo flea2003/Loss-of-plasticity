@@ -7,6 +7,7 @@ import wandb
 import numpy as np
 import time, random
 from tqdm import tqdm
+import subprocess
 from lop.algos.bp import Backprop
 from lop.algos.cbp import ContinualBackprop
 from lop.nets.linear import MyLinear
@@ -240,10 +241,9 @@ def main(arguments):
 
     name_parts = [params.get("agent", "unknown")]
 
-    # if "num_features" in params:
-    #     name_parts.append(f'features:{params["num_features"]}')
-    # if "num_hidden_layers" in params:
-    #     name_parts.append(f'layers:{params["num_hidden_layers"]}')
+    bash_command = "mkdir -p " + params['data_dir']
+    subprocess.Popen(bash_command.split(), stdout=subprocess.PIPE)
+    
     if "replacement_strategy" in params:
         name_parts.append(params["replacement_strategy"])
     if "high_replacement_rate" in params:
@@ -261,9 +261,6 @@ def main(arguments):
         config=params,
     )
 
-    bash_command = "mkdir -p " + params['data_dir']
-    subprocess.Popen(bash_command.split(), stdout=subprocess.PIPE)
-    
     online_expr(params)
 
     wandb.finish()
