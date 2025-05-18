@@ -3,7 +3,7 @@
 # Number of CPUs on GCP VM
 NUM_CPUS=$(nproc)
 
-declare -a arr=("bp" "cbp" "different_layers", "high_repl_rate")
+declare -a arr=("cbp")
 
 for i in "${arr[@]}"
 do
@@ -13,7 +13,7 @@ do
   mkdir -p logs/$i
 
   for ((j=0; j<TOTAL_FILES; j++)); do
-      FILE="${FILES[$i]}"
+      FILE="${FILES[$j]}"
       LOG_FILE=./logs/$i/log_${j}.out
 
       # Assign 1 CPU per task (not enforced, but helps manage load)
