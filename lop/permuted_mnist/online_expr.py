@@ -192,6 +192,10 @@ def online_expr(params: {}):
             iter += 1
         
         print('recent accuracy', accuracies[new_iter_start:iter - 1].mean())
+        num_weights = 99400
+        wandb.log({
+            "weight": weight_mag_sum[iter - 1].sum(dim=0)/(num_weights)
+        }, commit = False)
         wandb.log({
             "accuracy": accuracies[new_iter_start:iter - 1].mean()
         })

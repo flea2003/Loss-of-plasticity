@@ -7,7 +7,7 @@
     "data_dir": "data/different_layers/0/",
     "to_log": true,
     "project": "loss-of-plasticity",
-    "group": "diffent_layers_experiment",
+    "group": "diffent_layers_experiment2",
     "_comment_2_": "Learner parameters",
     "agent": "cbp",
     "opt": "sgd",

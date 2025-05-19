@@ -12,7 +12,7 @@ do
 
   mkdir -p logs/$i
 
-  for ((j=0; j<TOTAL_FILES; j++)); do
+  for ((j=0; j<16; j++)); do
       FILE="${FILES[$j]}"
       LOG_FILE=./logs/$i/log_${j}.out
 

@@ -7,7 +7,7 @@
     "data_dir": "data/cbp/3/",
     "to_log": true,
     "project": "loss-of-plasticity",
-    "group": "cont_backprop_experiment2",
+    "group": "cont_backprop_experiment3",
     "_comment_2_": "Learner parameters",
     "agent": "cbp",
     "opt": "sgd",
