@@ -3,7 +3,7 @@
 # Number of CPUs on GCP VM
 NUM_CPUS=$(nproc)
 
-declare -a arr=("cbp")
+declare -a arr=("bp")
 
 for i in "${arr[@]}"
 do
@@ -16,9 +16,13 @@ do
       FILE="${FILES[$j]}"
       LOG_FILE=./logs/$i/log_${j}.out
 
-      # Assign 1 CPU per task (not enforced, but helps manage load)
-      taskset -c $((j % NUM_CPUS)) \
-        python3 online_expr.py -c "$FILE" >> "$LOG_FILE" 2>&1 &
+      
+      (
+        nohup taskset -c $((j % NUM_CPUS)) \
+        python3 online_expr.py -c "$FILE" >> "$LOG_FILE" 2>&1 
+        
+        echo "EXIT_CODE=$?" >>"$LOG_FILE"
+      ) &
   done
 done 
 
