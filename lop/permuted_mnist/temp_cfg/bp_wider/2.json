@@ -4,7 +4,7 @@
     "num_runs": 3,
     "num_tasks": 800,
     "use_gpu": 1,
-    "data_dir": "data/bp/small_net/0/",
+    "data_dir": "data/bp_wider/small_net/0/",
     "to_log": true,
     "project": "loss-of-plasticity",
     "group": "backprop_final_wider",
@@ -16,5 +16,5 @@
     "step_size": 0.01,
     "weight_decay": 0,
     "index": 0,
-    "data_file": "data/bp/small_net/0/2"
+    "data_file": "data/bp_wider/small_net/0/2"
 }
