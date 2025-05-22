@@ -3,7 +3,7 @@
 # Number of CPUs on GCP VM
 NUM_CPUS=$(nproc)
 
-declare -a arr=("networkwise_high_repl_rate_abs_gradient")
+declare -a arr=("grad_rate_high_repl_rate_abs_gradient")
 
 for i in "${arr[@]}"
 do
