@@ -43,6 +43,7 @@ def online_expr(params: {}):
     util_type = 'adaptable_contribution'
     replacement_strategy = 'layerwise'
     layer_replace = -1
+    gradient_mult_hyperparameter = 1
 
     if 'to_log' in params.keys():
         to_log = params['to_log']
@@ -79,6 +80,8 @@ def online_expr(params: {}):
         replacement_strategy = params['replacement_strategy']
     if 'layer_replace' in params.keys():
         layer_replace = params['layer_replace']
+    if 'gradient_mult_hyperparameter' in params.keys():
+        gradient_mult_hyperparameter = params['gradient_mult_hyperparameter']
 
     classes_per_task = 10
     images_per_class = 6000
@@ -119,6 +122,7 @@ def online_expr(params: {}):
             device=dev,
             layer_replace=layer_replace,
             replacement_strategy=replacement_strategy,
+            gradient_mult_hyperparameter = gradient_mult_hyperparameter,
         )
 
     accuracy = nll_accuracy

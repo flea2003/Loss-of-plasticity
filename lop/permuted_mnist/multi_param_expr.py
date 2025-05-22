@@ -52,7 +52,7 @@ def main(arguments):
             """
                 write data in config files
             """
-            new_cfg_file = 'temp_cfg/networkwise/'+str(setting_index*params['num_runs']+idx)+'.json'
+            new_cfg_file = 'temp_cfg/networkwise_high_repl_rate_abs_gradient/'+str(setting_index*params['num_runs']+idx)+'.json'
             try:    f = open(new_cfg_file, 'w+')
             except: f = open(new_cfg_file, 'w+')
             with open(new_cfg_file, 'w+') as f:

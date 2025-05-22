@@ -26,6 +26,7 @@ class GnT(object):
             util_type='contribution',
             loss_func=F.mse_loss,
             accumulate=False,
+            gradient_mult_hyperparameter=1,
     ):
         super(GnT, self).__init__()
         self.device = device
@@ -35,6 +36,7 @@ class GnT(object):
         self.accumulate = accumulate
         self.layer_replace = layer_replace
         self.replacement_strategy = replacement_strategy
+        self.gradient_mult_hyperparameter = gradient_mult_hyperparameter
 
         self.opt = opt
         self.opt_type = 'sgd'
@@ -115,6 +117,20 @@ class GnT(object):
             elif self.util_type == 'feature_by_input':
                 input_wight_mag = self.net[layer_idx*2].weight.data.abs().mean(dim=1)
                 new_util = (features - bias_corrected_act).abs().mean(dim=0) / input_wight_mag
+            elif self.util_type == 'gradient':
+                params = list(self.net.parameters())     
+                param_grad = params[layer_idx].grad
+                if param_grad is not None:
+                    new_util = param_grad.sum()
+                else:
+                    new_util = torch.tensor(0.0)       
+            elif self.util_type == 'abs_gradient':
+                params = list(self.net.parameters())     
+                param_grad = params[layer_idx].grad
+                if param_grad is not None:
+                    new_util = abs(param_grad.sum())
+                else:
+                    new_util = torch.tensor(0.0)   
             else:
                 new_util = 0
 
@@ -293,7 +309,7 @@ class GnT(object):
             return features_to_replace, num_features_to_replace
 
 
-    def gen_new_features(self, features_to_replace, num_features_to_replace):
+    def gen_new_features(self, features_to_replace, num_features_to_replace, criterion):
         """
         Generate new features: Reset input and output weights for low utility features
         """
@@ -303,19 +319,26 @@ class GnT(object):
                     continue
                 current_layer = self.net[i * 2]
                 next_layer = self.net[i * 2 + 2]
-                current_layer.weight.data[features_to_replace[i], :] *= 0.0
-                # noinspection PyArgumentList
-                current_layer.weight.data[features_to_replace[i], :] += \
-                    torch.empty(num_features_to_replace[i], current_layer.in_features).uniform_(
-                        -self.bounds[i], self.bounds[i]).to(self.device)
-                current_layer.bias.data[features_to_replace[i]] *= 0
-                """
-                # Update bias to correct for the removed features and set the outgoing weights and ages to zero
-                """
-                next_layer.bias.data += (next_layer.weight.data[:, features_to_replace[i]] * \
-                                                self.mean_feature_act[i][features_to_replace[i]] / \
-                                                (1 - self.decay_rate ** self.ages[i][features_to_replace[i]])).sum(dim=1)
-                next_layer.weight.data[:, features_to_replace[i]] = 0
+
+                if self.util_type == 'gradient':
+                    if criterion == 'high':
+                        current_layer.weight.data[features_to_replace[i], :] /= self.gradient_mult_hyperparameter
+                    elif criterion == 'low':
+                        current_layer.weight.data[features_to_replace[i], :] *= self.gradient_mult_hyperparameter
+                else:
+                    current_layer.weight.data[features_to_replace[i], :] *= 0.0
+                    # noinspection PyArgumentList
+                    current_layer.weight.data[features_to_replace[i], :] += \
+                        torch.empty(num_features_to_replace[i], current_layer.in_features).uniform_(
+                            -self.bounds[i], self.bounds[i]).to(self.device)
+                    current_layer.bias.data[features_to_replace[i]] *= 0
+                    """
+                    # Update bias to correct for the removed features and set the outgoing weights and ages to zero
+                    """
+                    next_layer.bias.data += (next_layer.weight.data[:, features_to_replace[i]] * \
+                                                    self.mean_feature_act[i][features_to_replace[i]] / \
+                                                    (1 - self.decay_rate ** self.ages[i][features_to_replace[i]])).sum(dim=1)
+                    next_layer.weight.data[:, features_to_replace[i]] = 0
                 self.ages[i][features_to_replace[i]] = 0
 
 
@@ -349,9 +372,9 @@ class GnT(object):
             sys.exit()
         
         features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'low')
-        self.gen_new_features(features_to_replace, num_features_to_replace)
+        self.gen_new_features(features_to_replace, num_features_to_replace, criterion = 'low')
         self.update_optim_params(features_to_replace, num_features_to_replace)
 
         features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'high')
-        self.gen_new_features(features_to_replace, num_features_to_replace)
+        self.gen_new_features(features_to_replace, num_features_to_replace, criterion = 'high')
         self.update_optim_params(features_to_replace, num_features_to_replace)

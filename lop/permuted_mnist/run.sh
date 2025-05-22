@@ -3,7 +3,7 @@
 # Number of CPUs on GCP VM
 NUM_CPUS=$(nproc)
 
-declare -a arr=("bp")
+declare -a arr=("networkwise_high_repl_rate_abs_gradient")
 
 for i in "${arr[@]}"
 do
@@ -12,11 +12,10 @@ do
 
   mkdir -p logs/$i
 
-  for ((j=0; j<16; j++)); do
-      FILE="${FILES[$j]}"
-      LOG_FILE=./logs/$i/log_${j}.out
+  for ((j=0; j<TOTAL_FILES; j++)); do
+      FILE="${FILES[$((j))]}"
+      LOG_FILE=./logs/$i/log_$((j)).out
 
-      
       (
         nohup taskset -c $((j % NUM_CPUS)) \
         python3 online_expr.py -c "$FILE" >> "$LOG_FILE" 2>&1 

@@ -17,6 +17,7 @@ class ContinualBackprop(object):
             beta=0.9,
             beta_2=0.999,
             replacement_strategy='layerwise',
+            gradient_mult_hyperparameter = 1,
             layer_replace=-1,
             high_replacement_rate=0,
             replacement_rate=0.001,
@@ -61,6 +62,7 @@ class ContinualBackprop(object):
             loss_func=self.loss_func,
             init=init,
             accumulate=accumulate,
+            gradient_mult_hyperparameter=gradient_mult_hyperparameter
         )
 
     def learn(self, x, target):
