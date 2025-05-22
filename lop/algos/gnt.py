@@ -320,11 +320,16 @@ class GnT(object):
                 current_layer = self.net[i * 2]
                 next_layer = self.net[i * 2 + 2]
 
-                if self.util_type == 'gradient':
-                    if criterion == 'high':
-                        current_layer.weight.data[features_to_replace[i], :] /= self.gradient_mult_hyperparameter
-                    elif criterion == 'low':
-                        current_layer.weight.data[features_to_replace[i], :] *= self.gradient_mult_hyperparameter
+                if self.util_type == 'abs_gradient' and criterion == 'high':
+                    # if criterion == 'high':
+                    current_layer.weight.data[features_to_replace[i], :] /= 2
+                    current_layer.bias.data[features_to_replace[i]] /= 2
+                    next_layer.bias.data += (next_layer.weight.data[:, features_to_replace[i]] * \
+                                                    self.mean_feature_act[i][features_to_replace[i]] / \
+                                                    (1 - self.decay_rate ** self.ages[i][features_to_replace[i]])).sum(dim=1)
+                    # elif criterion == 'low':
+                    #     current_layer.weight.data[features_to_replace[i], :] *= 2
+                    #     # current_layer.bias.data[features_to_replace[i]] *= 2
                 else:
                     current_layer.weight.data[features_to_replace[i], :] *= 0.0
                     # noinspection PyArgumentList
