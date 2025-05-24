@@ -214,18 +214,18 @@ def online_expr(params: {}):
                 'abs_approximate_ranks': approximate_ranks_abs.cpu(),
                 'dead_neurons': dead_neurons.cpu(),
             }
-            save_data(file=params['data_file'], data=data)
+            # save_data(file=params['data_file'], data=data)
 
-    data = {
-        'accuracies': accuracies.cpu(),
-        'weight_mag_sum': weight_mag_sum.cpu(),
-        'ranks': ranks.cpu(),
-        'effective_ranks': effective_ranks.cpu(),
-        'approximate_ranks': approximate_ranks.cpu(),
-        'abs_approximate_ranks': approximate_ranks_abs.cpu(),
-        'dead_neurons': dead_neurons.cpu(),
-    }
-    save_data(file=params['data_file'], data=data)
+    # data = {
+    #     'accuracies': accuracies.cpu(),
+    #     'weight_mag_sum': weight_mag_sum.cpu(),
+    #     'ranks': ranks.cpu(),
+    #     'effective_ranks': effective_ranks.cpu(),
+    #     'approximate_ranks': approximate_ranks.cpu(),
+    #     'abs_approximate_ranks': approximate_ranks_abs.cpu(),
+    #     'dead_neurons': dead_neurons.cpu(),
+    # }
+    # save_data(file=params['data_file'], data=data)
 
 
 def save_data(file, data):
@@ -268,6 +268,8 @@ def main(arguments):
         group=params["group"],
         config=params,
     )
+
+    torch.manual_seed(params['seed'])
 
     online_expr(params)
 

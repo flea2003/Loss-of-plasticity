@@ -126,14 +126,19 @@ class GnT(object):
                     new_util = torch.tensor(0.0)       
             elif self.util_type == 'abs_gradient':
                 params = list(self.net.parameters())     
-                param_grad = params[layer_idx].grad
+                param = params[layer_idx]
+                param_grad = param.grad
                 if param_grad is not None:
-                    new_util = abs(param_grad.sum())
+                    epsilon = 1e-8
+                    grad_dot_weight = (param_grad * param).sum()
+                    new_util = grad_dot_weight.abs() / (features.abs().mean(dim=0) + epsilon)
                 else:
                     new_util = torch.tensor(0.0)   
+            elif self.util_type == 'output':
+                new_util = features.mean(dim=0)
             else:
                 new_util = 0
-
+        
             self.util[layer_idx] += (1 - self.decay_rate) * new_util
 
             """
@@ -167,14 +172,6 @@ class GnT(object):
                 if i != self.layer_replace and self.layer_replace != -1:
                     continue
 
-                self.ages[i] += 1
-                """
-                Update feature utility
-                """
-                self.update_utility(layer_idx=i, features=features[i])
-                """
-                Find the no. of features to replace
-                """
                 eligible_feature_indices = torch.where(self.ages[i] > self.maturity_threshold)[0]
                 if eligible_feature_indices.shape[0] == 0:
                     continue
@@ -230,14 +227,6 @@ class GnT(object):
             
             eligible_feature_indices = []
             for i in range(self.num_hidden_layers):
-                self.ages[i] += 1
-                """
-                Update feature utility
-                """
-                self.update_utility(layer_idx=i, features=features[i])
-                """
-                Find the no. of features to replace
-                """
                 replace_options = torch.where(self.ages[i] > self.maturity_threshold)[0]
                 replace_options = [(int(indx), i) for indx in replace_options]
                 
@@ -320,16 +309,29 @@ class GnT(object):
                 current_layer = self.net[i * 2]
                 next_layer = self.net[i * 2 + 2]
 
-                if self.util_type == 'abs_gradient' and criterion == 'high':
-                    # if criterion == 'high':
-                    current_layer.weight.data[features_to_replace[i], :] /= 2
-                    current_layer.bias.data[features_to_replace[i]] /= 2
-                    next_layer.bias.data += (next_layer.weight.data[:, features_to_replace[i]] * \
-                                                    self.mean_feature_act[i][features_to_replace[i]] / \
-                                                    (1 - self.decay_rate ** self.ages[i][features_to_replace[i]])).sum(dim=1)
-                    # elif criterion == 'low':
-                    #     current_layer.weight.data[features_to_replace[i], :] *= 2
-                    #     # current_layer.bias.data[features_to_replace[i]] *= 2
+                if self.util_type == 'abs_gradient':
+                    if criterion == 'high':
+                        current_layer.weight.data[features_to_replace[i], :] *= 0.8
+                        current_layer.bias.data[features_to_replace[i]] *= 0.8
+                    # next_layer.bias.data += (next_layer.weight.data[:, features_to_replace[i]] * \
+                    #                                 self.mean_feature_act[i][features_to_replace[i]] / \
+                    #                                 (1 - self.decay_rate ** self.ages[i][features_to_replace[i]])).sum(dim=1)
+                    elif criterion == 'low':
+                        current_layer.weight.data[features_to_replace[i], :] *= 1.2
+                        current_layer.bias.data[features_to_replace[i]] *= 1.2
+
+                    current_layer.weight.clamp_(-2.0, 2.0)
+                    current_layer.bias.clamp_(-2.0, 2.0)
+                elif self.util_type == 'output':
+                    if criterion == 'high':
+                        current_layer.weight.data[features_to_replace[i], :] *= 0.9
+                        current_layer.bias.data[features_to_replace[i]] *= 0.9
+                    elif criterion == 'low':
+                        current_layer.weight.data[features_to_replace[i], :] *= -1
+                        current_layer.bias.data[features_to_replace[i]] *= -1
+                    
+                    current_layer.weight.clamp_(-5.0, 5.0)
+                    current_layer.bias.clamp_(-5.0, 5.0)
                 else:
                     current_layer.weight.data[features_to_replace[i], :] *= 0.0
                     # noinspection PyArgumentList
@@ -375,6 +377,12 @@ class GnT(object):
         if not isinstance(features, list):
             print('features passed to generate-and-test should be a list')
             sys.exit()
+
+        for i in range(self.num_hidden_layers):
+            if i != self.layer_replace and self.layer_replace != -1:
+                continue
+            self.ages[i] += 1
+            self.update_utility(layer_idx=i, features=features[i])
         
         features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'low')
         self.gen_new_features(features_to_replace, num_features_to_replace, criterion = 'low')

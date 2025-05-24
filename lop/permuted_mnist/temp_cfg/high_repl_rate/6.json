@@ -7,7 +7,7 @@
     "data_dir": "data/high_repl_rate/6/",
     "to_log": true,
     "project": "loss-of-plasticity",
-    "group": "high_repl_rate_final",
+    "group": "high_repl_rate_corrected",
     "_comment_2_": "Learner parameters",
     "agent": "cbp",
     "opt": "sgd",
