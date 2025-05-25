@@ -16,7 +16,7 @@
     "step_size": 0.003,
     "accumulate": true,
     "gradient_mult_hyperparameter": 2,
-    "util_type": "abs_gradient",
+    "util_type": "contribution",
     "seed": 2,
     "high_replacement_rate": 0.001,
     "replacement_rate": 1e-05,
