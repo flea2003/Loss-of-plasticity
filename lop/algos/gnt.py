@@ -27,6 +27,8 @@ class GnT(object):
             loss_func=F.mse_loss,
             accumulate=False,
             gradient_mult_hyperparameter=1,
+            small_coef=1,
+            big_coef=1,
     ):
         super(GnT, self).__init__()
         self.device = device
@@ -51,6 +53,8 @@ class GnT(object):
         self.decay_rate = decay_rate
         self.maturity_threshold = maturity_threshold
         self.util_type = util_type
+        self.big_coef = big_coef
+        self.small_coef = small_coef
 
         """
         Utility of all features/neurons
@@ -167,6 +171,13 @@ class GnT(object):
         elif criterion == 'high' and self.high_replacement_rate == 0:
             return features_to_replace, num_features_to_replace
         
+
+        for i in range(self.num_hidden_layers):
+            if i != self.layer_replace and self.layer_replace != -1:
+                continue
+            self.ages[i] += 1
+            self.update_utility(layer_idx=i, features=features[i])
+
         if self.replacement_strategy == 'layerwise':
             for i in range(self.num_hidden_layers):
                 if i != self.layer_replace and self.layer_replace != -1:
@@ -324,14 +335,14 @@ class GnT(object):
                     current_layer.bias.clamp_(-2.0, 2.0)
                 elif self.util_type == 'output':
                     if criterion == 'high':
-                        current_layer.weight.data[features_to_replace[i], :] *= 0.9
-                        current_layer.bias.data[features_to_replace[i]] *= 0.9
+                        current_layer.weight.data[features_to_replace[i], :] *= self.big_coef
+                        current_layer.bias.data[features_to_replace[i]] *= self.big_coef
                     elif criterion == 'low':
-                        current_layer.weight.data[features_to_replace[i], :] *= -1
-                        current_layer.bias.data[features_to_replace[i]] *= -1
+                        current_layer.weight.data[features_to_replace[i], :] *= self.small_coef
+                        current_layer.bias.data[features_to_replace[i]] *= self.small_coef
                     
                     current_layer.weight.clamp_(-5.0, 5.0)
-                    current_layer.bias.clamp_(-5.0, 5.0)
+                    current_layer.bias.clamp_(-10.0, 10.0)
                 else:
                     current_layer.weight.data[features_to_replace[i], :] *= 0.0
                     # noinspection PyArgumentList
@@ -378,11 +389,6 @@ class GnT(object):
             print('features passed to generate-and-test should be a list')
             sys.exit()
 
-        for i in range(self.num_hidden_layers):
-            if i != self.layer_replace and self.layer_replace != -1:
-                continue
-            self.ages[i] += 1
-            self.update_utility(layer_idx=i, features=features[i])
         
         features_to_replace, num_features_to_replace = self.test_features(features=features, criterion = 'low')
         self.gen_new_features(features_to_replace, num_features_to_replace, criterion = 'low')

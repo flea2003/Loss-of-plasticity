@@ -44,6 +44,8 @@ def online_expr(params: {}):
     replacement_strategy = 'layerwise'
     layer_replace = -1
     gradient_mult_hyperparameter = 1
+    big_coef = 1
+    small_coef = 1
 
     if 'to_log' in params.keys():
         to_log = params['to_log']
@@ -82,6 +84,10 @@ def online_expr(params: {}):
         layer_replace = params['layer_replace']
     if 'gradient_mult_hyperparameter' in params.keys():
         gradient_mult_hyperparameter = params['gradient_mult_hyperparameter']
+    if 'big_coef' in params.keys():
+        big_coef = params['big_coef']
+    if 'small_coef' in params.keys():
+        small_coef = params['small_coef']
 
     classes_per_task = 10
     images_per_class = 6000
@@ -123,6 +129,8 @@ def online_expr(params: {}):
             layer_replace=layer_replace,
             replacement_strategy=replacement_strategy,
             gradient_mult_hyperparameter = gradient_mult_hyperparameter,
+            small_coef=small_coef,
+            big_coef=big_coef,
         )
 
     accuracy = nll_accuracy

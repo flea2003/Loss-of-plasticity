@@ -3,7 +3,7 @@
 # Number of CPUs on GCP VM
 NUM_CPUS=$(nproc)
 
-declare -a arr=("networkwise_seed")
+declare -a arr=("output_bigger")
 
 for i in "${arr[@]}"
 do
