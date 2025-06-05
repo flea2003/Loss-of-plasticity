@@ -13,8 +13,8 @@ module load 2023r1
 module load miniconda3/4.12.0
 conda activate lop
 
-START_INDX=$((400 + SLURM_ARRAY_TASK_ID * 40))
-END_INDX=$((400 + START_INDX + 39))
+START_INDX=$((SLURM_ARRAY_TASK_ID * 40))
+END_INDX=$((START_INDX + 39))
 
 FILES=(temp_cfg/*)
 TOTAL_FILES=${#FILES[@]}

@@ -11,16 +11,13 @@ class ContinualBackprop(object):
     def __init__(
             self,
             net,
+            coeffs,
+            repl_rates,
             step_size=0.001,
             loss='mse',
             opt='sgd',
             beta=0.9,
             beta_2=0.999,
-            replacement_strategy='layerwise',
-            gradient_mult_hyperparameter = 1,
-            layer_replace=-1,
-            high_replacement_rate=0,
-            replacement_rate=0.001,
             decay_rate=0.9,
             device='cpu',
             maturity_threshold=100,
@@ -30,8 +27,6 @@ class ContinualBackprop(object):
             momentum=0,
             outgoing_random=False,
             weight_decay=0,
-            small_coef=1,
-            big_coef=1
     ):
         self.net = net
 
@@ -51,12 +46,8 @@ class ContinualBackprop(object):
         self.gnt = None
         self.gnt = GnT(
             net=self.net.layers,
-            hidden_activation=self.net.act_type,
+            hidden_activations=self.net.act_type,
             opt=self.opt,
-            replacement_strategy=replacement_strategy,
-            high_replacement_rate=high_replacement_rate,
-            layer_replace=layer_replace,
-            replacement_rate=replacement_rate,
             decay_rate=decay_rate,
             maturity_threshold=maturity_threshold,
             util_type=util_type,
@@ -64,9 +55,8 @@ class ContinualBackprop(object):
             loss_func=self.loss_func,
             init=init,
             accumulate=accumulate,
-            gradient_mult_hyperparameter=gradient_mult_hyperparameter,
-            small_coef=small_coef,
-            big_coef=big_coef,
+            coeffs=coeffs,
+            repl_rates=repl_rates,
         )
 
     def learn(self, x, target):

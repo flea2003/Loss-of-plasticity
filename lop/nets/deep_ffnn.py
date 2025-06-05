@@ -35,7 +35,7 @@ class Layer(nn.Module):
 
 
 class DeepFFNN(nn.Module):
-    def __init__(self, input_size, num_features=2000, num_outputs=1, num_hidden_layers=2, act_type='relu'):
+    def __init__(self, input_size, num_features=2000, num_outputs=1, num_hidden_layers=2, act_type=['relu', 'relu']):
         super(DeepFFNN, self).__init__()
         self.num_inputs = input_size
         self.num_features = num_features
@@ -47,12 +47,13 @@ class DeepFFNN(nn.Module):
         # define the architecture
         self.layers = nn.ModuleList()
 
-        self.in_layer = Layer(in_shape=input_size, out_shape=num_features, act_type=self.act_type)
+        
+        self.in_layer = Layer(in_shape=input_size, out_shape=num_features, act_type=act_type[0])
         self.layers.extend(self.in_layer.layers)
 
         self.hidden_layers = []
         for i in range(self.num_hidden_layers - 1):
-            self.hidden_layers.append(Layer(in_shape=num_features, out_shape=num_features, act_type=self.act_type))
+            self.hidden_layers.append(Layer(in_shape=num_features, out_shape=num_features, act_type=self.act_type[i + 1]))
             self.layers.extend(self.hidden_layers[i].layers)
 
         self.out_layer = Layer(in_shape=num_features, out_shape=num_outputs, act_type='linear')

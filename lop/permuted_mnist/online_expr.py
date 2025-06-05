@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import torch
 import pickle
@@ -36,16 +37,12 @@ def online_expr(params: {}):
     perturb_scale = 0.1
     num_hidden_layers = 1
     mini_batch_size = 1
-    high_replacement_rate = 0
-    replacement_rate = 0.0001
     decay_rate = 0.99
     maturity_threshold = 100
-    util_type = 'adaptable_contribution'
-    replacement_strategy = 'layerwise'
-    layer_replace = -1
-    gradient_mult_hyperparameter = 1
-    big_coef = 1
-    small_coef = 1
+    util_type = 'contribution'
+    coeffs = [[-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]]
+    repl_rates = [[1e-4, 1e-5], [1e-4, 1e-5], [1e-4, 1e-5]]
+    activations = ['relu', 'relu', 'relu']
 
     if 'to_log' in params.keys():
         to_log = params['to_log']
@@ -68,33 +65,25 @@ def online_expr(params: {}):
         num_hidden_layers = params['num_hidden_layers']
     if 'mini_batch_size' in params.keys():
         mini_batch_size = params['mini_batch_size']
-    if 'replacement_rate' in params.keys():
-        replacement_rate = params['replacement_rate']
     if 'decay_rate' in params.keys():
         decay_rate = params['decay_rate']
     if 'maturity_threshold' in params.keys():
         maturity_threshold = params['mt']
     if 'util_type' in params.keys():
         util_type = params['util_type']
-    if 'high_replacement_rate' in params.keys():
-        high_replacement_rate = params['high_replacement_rate']
-    if 'replacement_strategy' in params.keys():
-        replacement_strategy = params['replacement_strategy']
-    if 'layer_replace' in params.keys():
-        layer_replace = params['layer_replace']
-    if 'gradient_mult_hyperparameter' in params.keys():
-        gradient_mult_hyperparameter = params['gradient_mult_hyperparameter']
-    if 'big_coef' in params.keys():
-        big_coef = params['big_coef']
-    if 'small_coef' in params.keys():
-        small_coef = params['small_coef']
+    if 'activations' in params.keys():
+        activations = params['activations']
+    if 'coeffs' in params.keys():
+        coeffs = params['coeffs']
+    if 'repl_rates' in params.keys():
+        repl_rates = params['repl_rates']
 
     classes_per_task = 10
-    images_per_class = 6000
+    images_per_class = 1000
     input_size = 784
     num_hidden_layers = num_hidden_layers
     net = DeepFFNN(input_size=input_size, num_features=num_features, num_outputs=classes_per_task,
-                   num_hidden_layers=num_hidden_layers)
+                   num_hidden_layers=num_hidden_layers, act_type=activations)
 
     if agent_type == 'linear':
         net = MyLinear(
@@ -119,18 +108,13 @@ def online_expr(params: {}):
             step_size=step_size,
             opt=opt,
             loss='nll',
-            high_replacement_rate=high_replacement_rate,
-            replacement_rate=replacement_rate,
             maturity_threshold=maturity_threshold,
             decay_rate=decay_rate,
             util_type=util_type,
             accumulate=True,
             device=dev,
-            layer_replace=layer_replace,
-            replacement_strategy=replacement_strategy,
-            gradient_mult_hyperparameter = gradient_mult_hyperparameter,
-            small_coef=small_coef,
-            big_coef=big_coef,
+            coeffs=coeffs,
+            repl_rates=repl_rates,
         )
 
     accuracy = nll_accuracy
@@ -198,9 +182,6 @@ def online_expr(params: {}):
             with torch.no_grad():
                 acc = accuracy(softmax(network_output, dim=1), batch_y).cpu()
                 accuracies[iter] = acc
-
-                # if iter % 100 == 0:
-                #     wandb.log({"accuracy": acc, "loss" : loss})
             iter += 1
         
         print('recent accuracy', accuracies[new_iter_start:iter - 1].mean())
@@ -222,19 +203,6 @@ def online_expr(params: {}):
                 'abs_approximate_ranks': approximate_ranks_abs.cpu(),
                 'dead_neurons': dead_neurons.cpu(),
             }
-            # save_data(file=params['data_file'], data=data)
-
-    # data = {
-    #     'accuracies': accuracies.cpu(),
-    #     'weight_mag_sum': weight_mag_sum.cpu(),
-    #     'ranks': ranks.cpu(),
-    #     'effective_ranks': effective_ranks.cpu(),
-    #     'approximate_ranks': approximate_ranks.cpu(),
-    #     'abs_approximate_ranks': approximate_ranks_abs.cpu(),
-    #     'dead_neurons': dead_neurons.cpu(),
-    # }
-    # save_data(file=params['data_file'], data=data)
-
 
 def save_data(file, data):
     with open(file, 'wb+') as f:
@@ -260,20 +228,19 @@ def main(arguments):
     bash_command = "mkdir -p " + params['data_dir']
     subprocess.Popen(bash_command.split(), stdout=subprocess.PIPE)
     
-    if "replacement_strategy" in params:
-        name_parts.append(params["replacement_strategy"])
-    if "high_replacement_rate" in params:
-        name_parts.append(f'high_rate:{params["high_replacement_rate"]}')
-    if "replacement_rate" in params:
-        name_parts.append(f'low_rate:{params["replacement_rate"]}')
-    if "layer_replace" in params:
-        name_parts.append(f'layer_replace:{params["layer_replace"]}')
+    if "step_size" in params:
+        name_parts.append(f'step_size:{params["step_size"]}')
+    if "util_type" in params:
+        if params["util_type"] == 'output':
+            if "coeffs" in params:
+                name_parts.append(f'coeffs:{params["coeffs"]}')
     run_name = ",".join(name_parts)
 
     wandb.init(
         project=params["project"],
+        dir="../../../../../../tmp/vpurice/",
         name=run_name,
-        group=params["group"],
+        group=params.get("group"),
         config=params,
     )
 

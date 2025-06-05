@@ -1,0 +1,22 @@
+{
+    "model_version": "L2 on net with 3 hidden layer and 2000 hidden-units",
+    "_comment_1_": "List of problem/experiment parameters",
+    "num_runs": 1,
+    "num_tasks": 500,
+    "use_gpu": 1,
+    "data_dir": "data/l2/12/",
+    "to_log": true,
+    "_comment_2_": "Learner parameters",
+    "agent": "bp",
+    "opt": "sgd",
+    "num_features": 100,
+    "num_hidden_layers": 3,
+    "step_size": 0.003,
+    "act_type": "selu",
+    "project": "loss-of-plasticity",
+    "group": "l2_hyperparam",
+    "seed": 2,
+    "weight_decay": 0.001,
+    "index": 12,
+    "data_file": "data/l2/12/0"
+}

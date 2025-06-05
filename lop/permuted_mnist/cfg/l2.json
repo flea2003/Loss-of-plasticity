@@ -2,8 +2,8 @@
 "model_version": "L2 on net with 3 hidden layer and 2000 hidden-units",
 
   "_comment_1_": "List of problem/experiment parameters",
-  "num_runs":  10,
-  "num_tasks": 800,
+  "num_runs":  1,
+  "num_tasks": 500,
   "use_gpu": 1,
   "data_dir": "data/l2/",
   "to_log": true,
@@ -11,8 +11,14 @@
   "_comment_2_": "Learner parameters",
   "agent": "bp",
   "opt": "sgd",
-  "num_features": 2000,
-  "num_hidden_layers": 3,
+  "num_features": 100,
+  "num_hidden_layers": 5,
   "step_size": 0.003,
+  "activations": [["relu", "relu", "tanh", "tanh", "relu"]],
+  "coeffs": [[[0.5, 0.2], [0.5, 0.2], [0.5, 0.2], [0.5, 0.2], [0.5, 0.2]]],
+  "repl_rates": [[[1e-6, 1e-5], [1e-6, 1e-5], [1e-6, 1e-5], [1e-6, 1e-5], [1e-6, 1e-5]]],
+  "project": "loss-of-plasticity",
+  "group": "deeper_l2",
+  "seed": [1, 2, 3],
   "weight_decay": [1e-3, 1e-4, 1e-5]
 }
